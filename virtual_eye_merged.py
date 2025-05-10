@@ -5,8 +5,13 @@ import pytesseract
 import pyttsx3
 import logging
 from google import genai
+from dotenv import load_dotenv
+import os
 
-client = genai.Client(api_key="AIzaSyBokhP8zf8e3reP95CTxVCHWte09Z9iKfo")
+load_dotenv()
+key=os.getenv("API_KEY")
+
+client = genai.Client(api_key=key)
 
 # Load YOLO and currency detection models
 yolo_model = YOLO("yolov8n.pt")
