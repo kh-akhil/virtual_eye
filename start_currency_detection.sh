@@ -55,4 +55,4 @@ fi
 
 echo ""
 echo "Running main file"
-python currency_detection.py
+python currency_detection_new.py

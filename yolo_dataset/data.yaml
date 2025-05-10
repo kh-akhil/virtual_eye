@@ -1,0 +1,6 @@
+path: /Users/admin/Desktop/virtual eye/yolo_dataset
+train: images/train
+val: images/val
+
+nc: 7
+names: ['Ten', 'Two Hundred', 'Hundred', 'Two Thousand', 'Fifty', 'Twenty', 'Five Hundred']
