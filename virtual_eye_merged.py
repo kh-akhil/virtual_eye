@@ -62,8 +62,8 @@ ROI_WIDTH = 224
 ROI_HEIGHT = 224
 
 # Coordinates for the center of the screen (adjust this if needed)
-ROI_CENTER_X = 320  # Horizontal center of the frame (you can adjust it)
-ROI_CENTER_Y = 240  # Vertical center of the frame (you can adjust it)
+ROI_CENTER_X = 640  # Horizontal center of the frame (you can adjust it)
+ROI_CENTER_Y = 360  # Vertical center of the frame (you can adjust it)
 
 # ROI corner coordinates
 ROI_TOP_LEFT = (ROI_CENTER_X - ROI_WIDTH // 2, ROI_CENTER_Y - ROI_HEIGHT // 2)
@@ -156,7 +156,7 @@ def listen_and_transcribe():
     
 
 def main():
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(1)
     if not cap.isOpened():
         print("Cannot open camera.")
         return
