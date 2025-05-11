@@ -4,16 +4,17 @@ from ultralytics import YOLO
 import pytesseract
 import pyttsx3
 import logging
-from google import genai
+import google.generativeai as genai
 from dotenv import load_dotenv
 import os
-import RPi.GPIO as GPIO
+from gpiozero import Button
 import time
 import speech_recognition as sr
 
 load_dotenv()
 key=os.getenv("API_KEY")
-client = genai.Client(api_key=key)
+genai.configure(api_key=key)
+client = genai.GenerativeModel(model_name="gemini-2.0-flash")
 
 yolo_model = YOLO("yolov8n.pt")
 yolo_currency = YOLO("best.pt")
@@ -27,9 +28,8 @@ logging.basicConfig(level=logging.INFO)
 MODE_BUTTON_PIN = 17     # Touch sensor 1
 CONFIRM_BUTTON_PIN = 27  # Touch sensor 2
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(MODE_BUTTON_PIN, GPIO.IN)
-GPIO.setup(CONFIRM_BUTTON_PIN, GPIO.IN)
+mode_button = Button(MODE_BUTTON_PIN)
+confirm_button = Button(CONFIRM_BUTTON_PIN)
 
 # Color Ranges
 color_ranges = {
@@ -184,11 +184,11 @@ def main():
             #cv2.imshow("Virtual Eye", frame_display)
             #key = cv2.waitKey(1) & 0xFF  # Handle key press
             
-            if GPIO.input(MODE_BUTTON_PIN):
+            if mode_button.is_pressed:
                 current_mode_index = (current_mode_index + 1) % len(modes)
                 time.sleep(0.3)  # debounce
                 
-            if GPIO.input(CONFIRM_BUTTON_PIN):
+            if confirm_button.is_pressed:
                 active = True
                 time.sleep(0.3)  # debounce
 
@@ -241,7 +241,7 @@ def main():
                 elif current_mode_index == 4:    
                     text = listen_and_transcribe()
                     if text:
-                        response = client.models.generate_content(model="gemini-2.0-flash", contents=text)
+                        response = model.generate_content(text)
                         print("AI Assistant Response:", response.text)
                         tts_engine.say(response.text)
                         tts_engine.runAndWait()
@@ -254,8 +254,9 @@ def main():
                         
     except KeyboardInterrupt:
         print("\nExiting...")
+        tts_engine.say("Exiting the Virtual Eye.")
+        tts_engine.runAndWait()
     finally:    
-        GPIO.cleanup()
         cap.release()
         cv2.destroyAllWindows()
 
