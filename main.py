@@ -11,10 +11,12 @@ from gpiozero import Button
 import time
 import speech_recognition as sr
 
+os.environ["GPIOZERO_PIN_FACTORY"] = "lgpio"
+
 load_dotenv()
 key=os.getenv("API_KEY")
 genai.configure(api_key=key)
-client = genai.GenerativeModel(model_name="gemini-2.0-flash")
+model = genai.GenerativeModel(model_name="gemini-2.0-flash")
 
 yolo_model = YOLO("yolov8n.pt")
 yolo_currency = YOLO("best.pt")
@@ -28,8 +30,8 @@ logging.basicConfig(level=logging.INFO)
 MODE_BUTTON_PIN = 17     # Touch sensor 1
 CONFIRM_BUTTON_PIN = 27  # Touch sensor 2
 
-mode_button = Button(MODE_BUTTON_PIN)
-confirm_button = Button(CONFIRM_BUTTON_PIN)
+mode_button = Button(MODE_BUTTON_PIN, pull_up=False)
+confirm_button = Button(CONFIRM_BUTTON_PIN, pull_up=False)
 
 # Color Ranges
 color_ranges = {
@@ -162,13 +164,14 @@ def main():
     tts_engine.say("Welcome to the Virtual Eye. Please select a mode.")
     tts_engine.runAndWait()
     print("Virtual Eye started.")
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Cannot open camera.")
         return
 
     modes = ["Object Detection", "Color Detection", "Currency Detection", "Book Reading", "AI Assistance"]
     current_mode_index = 0
+    previous_mode_index = -1
     active = False
 
     try:
@@ -191,27 +194,28 @@ def main():
             if confirm_button.is_pressed:
                 active = True
                 time.sleep(0.3)  # debounce
-
-            if current_mode_index == 0:
-                print("Object detection mode")
-                tts_engine.say("Object detection mode")
-                tts_engine.runAndWait()
-            elif current_mode_index == 1:
-                print("Color detection mode")
-                tts_engine.say("Color detection mode")
-                tts_engine.runAndWait()
-            elif current_mode_index == 2:
-                print("Currency detection mode")
-                tts_engine.say("Currency detection mode")
-                tts_engine.runAndWait()
-            elif current_mode_index == 3:
-                print("Book reading mode")
-                tts_engine.say("Book reading mode")
-                tts_engine.runAndWait()
-            elif current_mode_index == 4:
-                print("AI assistance mode")
-                tts_engine.say("AI assistance mode")
-                tts_engine.runAndWait()
+            if current_mode_index != previous_mode_index:
+                if current_mode_index == 0:
+                    print("Object detection mode")
+                    tts_engine.say("Object detection mode")
+                    tts_engine.runAndWait()
+                elif current_mode_index == 1:
+                    print("Color detection mode")
+                    tts_engine.say("Color detection mode")
+                    tts_engine.runAndWait()
+                elif current_mode_index == 2:
+                    print("Currency detection mode")
+                    tts_engine.say("Currency detection mode")
+                    tts_engine.runAndWait()
+                elif current_mode_index == 3:
+                    print("Book reading mode")
+                    tts_engine.say("Book reading mode")
+                    tts_engine.runAndWait()
+                elif current_mode_index == 4:
+                    print("AI assistance mode")
+                    tts_engine.say("AI assistance mode")
+                    tts_engine.runAndWait()
+                previous_mode_index = current_mode_index
                 
             if active:
                 if current_mode_index == 0:
@@ -219,17 +223,20 @@ def main():
                     print("Objects Detected:", ", ".join(objs_conf) if objs_conf else "None")
                     tts_engine.say(f'The detected objects are: {", ".join(objs) if objs else "None"}')
                     tts_engine.runAndWait()
+                    time.sleep(1)
                     active = False
                 elif current_mode_index == 1:
                     _, color = handle_color_detection(frame)
                     print("Detected Color:", color)
                     tts_engine.say(f'The detected color is: {color}')
                     tts_engine.runAndWait()
+                    time.sleep(1)
                     active = False
                 elif current_mode_index == 2:
                     frame, note, note_conf = handle_currency_detection(frame)
                     print("Currency Detected:", ", ".join(note_conf) if note_conf else "None")
                     tts_engine.say(f'The detected notes are: {", ".join(note) if note else "None"}')
+                    time.sleep(1)
                     tts_engine.runAndWait()
                     active = False
                 elif current_mode_index == 3:
@@ -237,19 +244,23 @@ def main():
                     print("Detected Text:\n", text)
                     tts_engine.say(f'The detected text is: {text}')
                     tts_engine.runAndWait()
+                    time.sleep(1)
                     active = False
                 elif current_mode_index == 4:    
                     text = listen_and_transcribe()
+                    print("Sending to AI Assistant:", text)
                     if text:
                         response = model.generate_content(text)
                         print("AI Assistant Response:", response.text)
                         tts_engine.say(response.text)
                         tts_engine.runAndWait()
+                        time.sleep(1)
                         active = False
                     else:
                         print("No valid input for AI assistant.")
                         tts_engine.say("Sorry I did not catch that. Please try again.")
                         tts_engine.runAndWait()
+                        time.sleep(1)
                         active = False
                         
     except KeyboardInterrupt:
