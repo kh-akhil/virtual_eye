@@ -15,7 +15,7 @@ client = genai.Client(api_key=key)
 
 # Load YOLO and currency detection models
 yolo_model = YOLO("yolov8n.pt")
-yolo_currency = YOLO("best.pt")
+yolo_currency = YOLO("yolo_currency.pt")
 logging.getLogger("ultralytics").setLevel(logging.ERROR)
 
 # TTS (optional)

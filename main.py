@@ -19,7 +19,7 @@ genai.configure(api_key=key)
 model = genai.GenerativeModel(model_name="gemini-2.0-flash")
 
 yolo_model = YOLO("yolov8n.pt")
-yolo_currency = YOLO("best.pt")
+yolo_currency = YOLO("yolo_currency.pt")
 logging.getLogger("ultralytics").setLevel(logging.ERROR)
 
 ocr = PaddleOCR(use_angle_cls=True, lang='en')

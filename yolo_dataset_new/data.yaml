@@ -1,0 +1,17 @@
+path: /Users/admin/Desktop/virtual eye/yolo_dataset_new
+
+train: images/train
+val: images/test
+
+names:
+  0: Ten
+  1: Two Hundred
+  2: Hundred
+  3: Two Thousand
+  4: Fifty
+  5: Twenty
+  6: Five Hundred
+  7: Ten Rupee Coin
+  8: One Rupee Coin
+  9: Two Rupee Coin
+  10: Five Rupee Coin

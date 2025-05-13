@@ -5,7 +5,7 @@ import logging
 logging.getLogger("ultralytics").setLevel(logging.ERROR)
 
 # Load the trained model
-model = YOLO("best.pt")
+model = YOLO("yolo_currency.pt")
 
 # OpenCV video capture from webcam
 cap = cv2.VideoCapture(0)  # Use 0 for default webcam
@@ -29,7 +29,7 @@ while True:
             class_id = int(box.cls[0])
             confidence = float(box.conf[0])
             object_name = model.names[class_id]
-            print(f"- {object_name} ({confidence:.2f} confidence)")
+            #print(f"- {object_name} ({confidence:.2f} confidence)")
 
     # Press 'q' to quit
     if cv2.waitKey(1) & 0xFF == ord('q'):
