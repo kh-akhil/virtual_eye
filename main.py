@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 from ultralytics import YOLO
-import pytesseract
 import pyttsx3
 import logging
 import google.generativeai as genai
@@ -10,6 +9,7 @@ import os
 from gpiozero import Button
 import time
 import speech_recognition as sr
+from paddleocr import PaddleOCR
 
 os.environ["GPIOZERO_PIN_FACTORY"] = "lgpio"
 
@@ -21,6 +21,9 @@ model = genai.GenerativeModel(model_name="gemini-2.0-flash")
 yolo_model = YOLO("yolov8n.pt")
 yolo_currency = YOLO("best.pt")
 logging.getLogger("ultralytics").setLevel(logging.ERROR)
+
+ocr = PaddleOCR(use_angle_cls=True, lang='en')
+logging.getLogger('ppocr').setLevel(logging.ERROR)
 
 # TTS 
 tts_engine = pyttsx3.init()
@@ -128,15 +131,33 @@ def handle_currency_detection(frame):
             detected_curr_conf.append(f"{object_name} ({confidence:.2f})")
     return frame_annotated, detected_curr, detected_curr_conf
 
+def get_line_center_y(box):
+    return (box[0][1] + box[2][1]) / 2 
 
 def handle_book_reading(frame):
-    roi = frame[ROI_TOP_LEFT[1]:ROI_BOTTOM_RIGHT[1], ROI_TOP_LEFT[0]:ROI_BOTTOM_RIGHT[0]]
-    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    gray = cv2.medianBlur(gray, 3)
-    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-    resized = cv2.resize(thresh, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-    text = pytesseract.image_to_string(resized, config='--oem 3 --psm 6')
-    return frame, text.strip()
+    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    result = ocr.ocr(image_rgb, cls=True)
+    if result and result[0] is not None and len(result[0]) > 0:
+            lines_with_boxes = result[0]
+
+            # Step 1: Sort lines by vertical position (top to bottom)
+            lines_with_boxes.sort(key=lambda x: get_line_center_y(x[0]))
+
+            full_text = ""
+            last_y = None
+
+            for i, (box, (text, _)) in enumerate(lines_with_boxes):
+                curr_y = get_line_center_y(box)
+
+                if last_y is not None:
+                    # If the current line is vertically far from the last line → new paragraph
+                    if abs(curr_y - last_y) > 40:  # Adjust this threshold as needed
+                        full_text += "\n\n"
+                    else:
+                        full_text += " "
+                full_text += text
+                last_y = curr_y
+    return frame, full_text
 
 
 def listen_and_transcribe():

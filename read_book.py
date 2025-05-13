@@ -1,77 +1,58 @@
 import cv2
-import pytesseract
+from paddleocr import PaddleOCR
 import pyttsx3
 
-# Optional: Set Tesseract path for Windows
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+ocr = PaddleOCR(use_angle_cls=True, lang='en')
+#engine = pyttsx3.init()
+#engine.setProperty('rate', 150)
 
-# TTS Engine
-# engine = pyttsx3.init()
+cap = cv2.VideoCapture(0)
+print("Press 's' to scan and read, 'q' to quit.")
 
-# Start camera
-cap = cv2.VideoCapture(1)
-if not cap.isOpened():
-    print("❌ Cannot open camera")
-    exit()
-
-print("📷 Press 's' to scan and read, 'q' to quit")
+def get_line_center_y(box):
+    return (box[0][1] + box[2][1]) / 2  # Average y of top-left and bottom-right
 
 while True:
     ret, frame = cap.read()
-    if not ret or frame is None:
-        print("⚠️ Failed to grab frame")
-        continue
+    if not ret:
+        break
 
-    height, width, _ = frame.shape
-
-    # Define central box
-    box_w, box_h = 300, 150  # size of the box (you can modify)
-    cx, cy = width // 2, height // 2
-    x1, y1 = cx - box_w // 2, cy - box_h // 2
-    x2, y2 = cx + box_w // 2, cy + box_h // 2
-
-    # Draw the rectangle
-    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-    cv2.putText(frame, "Align text in the box - Press 's' to scan", (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
-    cv2.imshow("Camera", frame)
-    key = cv2.waitKey(1)
+    cv2.imshow("Live Feed - Book Reader", frame)
+    key = cv2.waitKey(1) & 0xFF
 
     if key == ord('s'):
-        print("🔍 Scanning...")
+        image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        result = ocr.ocr(image_rgb, cls=True)
 
-        # Crop ROI from frame
-        roi = frame[y1:y2, x1:x2]
+        if result and result[0] is not None and len(result[0]) > 0:
+            lines_with_boxes = result[0]
 
-        # Preprocess image
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        gray = cv2.medianBlur(gray, 3)
+            # Step 1: Sort lines by vertical position (top to bottom)
+            lines_with_boxes.sort(key=lambda x: get_line_center_y(x[0]))
 
-        # Adaptive thresholding
-        thresh = cv2.adaptiveThreshold(
-            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY, 11, 2
-        )
+            full_text = ""
+            last_y = None
 
-        # Resize for better OCR accuracy
-        resized = cv2.resize(thresh, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+            for i, (box, (text, _)) in enumerate(lines_with_boxes):
+                curr_y = get_line_center_y(box)
 
-        # OCR
-        custom_config = r'--oem 3 --psm 6'
-        text = pytesseract.image_to_string(resized, config=custom_config)
+                if last_y is not None:
+                    # If the current line is vertically far from the last line → new paragraph
+                    if abs(curr_y - last_y) > 40:  # Adjust this threshold as needed
+                        full_text += "\n\n"
+                    else:
+                        full_text += " "
+                full_text += text
+                last_y = curr_y
 
-        print("📝 Detected Text:\n", text.strip())
+            print("\nFormatted Text:\n", full_text)
+            #engine.say(full_text)
+            #engine.runAndWait()
 
-        # Speak the text (if enabled)
-        # if text.strip():
-        #     engine.say(text)
-        #     engine.runAndWait()
-        # else:
-        #     print("❗ No readable text detected.")
+        else:
+            print("No text detected.")
 
     elif key == ord('q'):
-        print("👋 Exiting...")
         break
 
 cap.release()
