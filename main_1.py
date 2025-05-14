@@ -47,7 +47,8 @@ color_ranges = {
     "Purple":   [([130, 20, 20], [160, 255, 255])],
     "White":    [([0, 0, 200], [180, 30, 255])],
     "Black":    [([0, 0, 0], [180, 255, 50])],
-    "Pink":     [([140, 20, 20], [170, 255, 255])],
+    "Pink": [([140, 10, 80], [175, 255, 255])],
+    "Light Pink": [([145, 5, 120], [175, 150, 255])],
     "Brown":    [([10, 20, 20], [20, 255, 200])],
     "Gray":     [([0, 20, 50], [180, 50, 180])],
     "Cyan":     [([80, 20, 20], [100, 255, 255])],
@@ -63,7 +64,6 @@ color_ranges = {
     "Dark Red":    [([160, 20, 20], [180, 255, 255])],
     "Light Yellow": [([20, 20, 20], [35, 255, 255])],
     "Dark Yellow":  [([30, 20, 20], [40, 255, 255])],
-    "Light Pink":   [([145, 20, 20], [165, 255, 255])]
 }
 
 
@@ -116,6 +116,7 @@ def handle_color_detection(frame):
     return frame, dominant_color
 
 def handle_currency_detection(frame):
+    frame = cv2.convertScaleAbs(frame, alpha=1.2, beta=30)
     results = yolo_currency(frame)
     frame_annotated = results[0].plot()
     detected_curr = []
