@@ -10,6 +10,7 @@ from gpiozero import Button
 import time
 import speech_recognition as sr
 from paddleocr import PaddleOCR
+import threading
 
 os.environ["GPIOZERO_PIN_FACTORY"] = "lgpio"
 
@@ -25,8 +26,49 @@ logging.getLogger("ultralytics").setLevel(logging.ERROR)
 ocr = PaddleOCR(use_angle_cls=True, lang='en')
 logging.getLogger('ppocr').setLevel(logging.ERROR)
 
-# TTS 
-tts_engine = pyttsx3.init()
+# Improved TTS handling
+class TTSHandler:
+    def __init__(self):
+        self.engine = pyttsx3.init()
+        self.engine.setProperty('rate', 150)  # Slightly slower rate
+        self.engine.setProperty('volume', 0.9)  # Full volume
+        self.speaking = False
+        self.lock = threading.Lock()
+        
+    def on_start(self, name):
+        with self.lock:
+            self.speaking = True
+            
+    def on_end(self, name, completed):
+        with self.lock:
+            self.speaking = False
+            
+    def say(self, text):
+        """Say the given text and wait for completion"""
+        if not text:
+            return
+            
+        # Connect callbacks
+        self.engine.connect('started-utterance', self.on_start)
+        self.engine.connect('finished-utterance', self.on_end)
+        
+        # Say the text
+        with self.lock:
+            self.speaking = True
+        self.engine.say(text)
+        self.engine.runAndWait()
+        
+        # Wait for completion with timeout protection
+        timeout = len(text.split()) * 0.5 + 3  # Rough estimate based on word count
+        start_time = time.time()
+        while self.speaking and (time.time() - start_time) < timeout:
+            time.sleep(0.1)
+        
+        # Make sure we're fully done
+        time.sleep(0.3)
+
+# Replace tts_engine with TTSHandler
+tts = TTSHandler()
 
 logging.basicConfig(level=logging.INFO)
 
@@ -137,26 +179,26 @@ def get_line_center_y(box):
 def handle_book_reading(frame):
     image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     result = ocr.ocr(image_rgb, cls=True)
+    full_text = ""
     if result and result[0] is not None and len(result[0]) > 0:
-            lines_with_boxes = result[0]
+        lines_with_boxes = result[0]
 
-            # Step 1: Sort lines by vertical position (top to bottom)
-            lines_with_boxes.sort(key=lambda x: get_line_center_y(x[0]))
+        # Step 1: Sort lines by vertical position (top to bottom)
+        lines_with_boxes.sort(key=lambda x: get_line_center_y(x[0]))
 
-            full_text = ""
-            last_y = None
+        last_y = None
 
-            for i, (box, (text, _)) in enumerate(lines_with_boxes):
-                curr_y = get_line_center_y(box)
+        for i, (box, (text, _)) in enumerate(lines_with_boxes):
+            curr_y = get_line_center_y(box)
 
-                if last_y is not None:
-                    # If the current line is vertically far from the last line → new paragraph
-                    if abs(curr_y - last_y) > 40:  # Adjust this threshold as needed
-                        full_text += "\n\n"
-                    else:
-                        full_text += " "
-                full_text += text
-                last_y = curr_y
+            if last_y is not None:
+                # If the current line is vertically far from the last line → new paragraph
+                if abs(curr_y - last_y) > 40:  # Adjust this threshold as needed
+                    full_text += "\n\n"
+                else:
+                    full_text += " "
+            full_text += text
+            last_y = curr_y
     return frame, full_text
 
 
@@ -182,8 +224,7 @@ def listen_and_transcribe():
         return None
 
 def main():
-    tts_engine.say("Welcome to the Virtual Eye. Please select a mode.")
-    tts_engine.runAndWait()
+    tts.say("Welcome to the Virtual Eye. Please select a mode.")
     print("Virtual Eye started.")
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -215,57 +256,50 @@ def main():
             if confirm_button.is_pressed:
                 active = True
                 time.sleep(0.3)  # debounce
+                
             if current_mode_index != previous_mode_index:
                 if current_mode_index == 0:
                     print("Object detection mode")
-                    tts_engine.say("Object detection mode")
-                    tts_engine.runAndWait()
+                    tts.say("Object detection mode")
                 elif current_mode_index == 1:
                     print("Color detection mode")
-                    tts_engine.say("Color detection mode")
-                    tts_engine.runAndWait()
+                    tts.say("Color detection mode")
                 elif current_mode_index == 2:
                     print("Currency detection mode")
-                    tts_engine.say("Currency detection mode")
-                    tts_engine.runAndWait()
+                    tts.say("Currency detection mode")
                 elif current_mode_index == 3:
                     print("Book reading mode")
-                    tts_engine.say("Book reading mode")
-                    tts_engine.runAndWait()
+                    tts.say("Book reading mode")
                 elif current_mode_index == 4:
                     print("AI assistance mode")
-                    tts_engine.say("AI assistance mode")
-                    tts_engine.runAndWait()
+                    tts.say("AI assistance mode")
                 previous_mode_index = current_mode_index
                 
             if active:
                 if current_mode_index == 0:
                     frame, objs, objs_conf = handle_object_detection(frame)
+                    objects_text = ", ".join(objs) if objs else "None"
                     print("Objects Detected:", ", ".join(objs_conf) if objs_conf else "None")
-                    tts_engine.say(f'The detected objects are: {", ".join(objs) if objs else "None"}')
-                    tts_engine.runAndWait()
-                    time.sleep(1)
+                    tts.say(f'The detected objects are {objects_text}')
                     active = False
                 elif current_mode_index == 1:
                     _, color = handle_color_detection(frame)
                     print("Detected Color:", color)
-                    tts_engine.say(f'The detected color is: {color}')
-                    tts_engine.runAndWait()
-                    time.sleep(1)
+                    tts.say(f'The detected color is {color}')
                     active = False
                 elif current_mode_index == 2:
                     frame, note, note_conf = handle_currency_detection(frame)
+                    notes_text = ", ".join(note) if note else "None"
                     print("Currency Detected:", ", ".join(note_conf) if note_conf else "None")
-                    tts_engine.say(f'The detected notes are: {", ".join(note) if note else "None"}')
-                    time.sleep(1)
-                    tts_engine.runAndWait()
+                    tts.say(f'The detected notes are {notes_text}')
                     active = False
                 elif current_mode_index == 3:
                     _, text = handle_book_reading(frame)
                     print("Detected Text:\n", text)
-                    tts_engine.say(f'The detected text is: {text}')
-                    tts_engine.runAndWait()
-                    time.sleep(1)
+                    if text:
+                        tts.say(f'The detected text is {text}')
+                    else:
+                        tts.say("No text detected")
                     active = False
                 elif current_mode_index == 4:    
                     text = listen_and_transcribe()
@@ -273,27 +307,18 @@ def main():
                     if text:
                         response = model.generate_content(text)
                         print("AI Assistant Response:", response.text)
-                        tts_engine.say(response.text)
-                        tts_engine.runAndWait()
-                        time.sleep(1)
-                        active = False
+                        tts.say(response.text)
                     else:
                         print("No valid input for AI assistant.")
-                        tts_engine.say("Sorry I did not catch that. Please try again.")
-                        tts_engine.runAndWait()
-                        time.sleep(1)
-                        active = False
+                        tts.say("Sorry I did not catch that. Please try again.")
+                    active = False
                         
     except KeyboardInterrupt:
         print("\nExiting...")
-        tts_engine.say("Exiting the Virtual Eye.")
-        tts_engine.runAndWait()
+        tts.say("Exiting the Virtual Eye.")
     finally:    
         cap.release()
         cv2.destroyAllWindows()
-
-    cap.release()
-    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()
